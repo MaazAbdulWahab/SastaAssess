@@ -82,6 +82,76 @@ class OrdersCrud(ViewSet):
             )
         return Response({"success": True, "order": serialized.data}, status=HTTP_200_OK)
 
+    def update(self, request, pk=None):
+        try:
+            order = Order.objects.get(order_id=pk)
+
+        except Order.DoesNotExist:
+            return Response(
+                {"success": False, "message": "Not Found"}, status=HTTP_404_NOT_FOUND
+            )
+
+        serialized = OrderPlacement(data=request.data)
+        if serialized.is_valid():
+            summation = 0
+
+            for req in serialized.validated_data["requests"]:
+                if OrderItems.objects.filter(
+                    order=order, product__id=req["product_id"]
+                ).exists():
+                    oldrecord = OrderItems.objects.select_related("product").get(
+                        order=order, product__id=req["product_id"]
+                    )
+
+                    if oldrecord.quantity != req["quantity"]:
+                        oldrecord.quantity = req["quantity"]
+                        oldrecord.save()
+
+                    summation += oldrecord.product.price * req["quantity"]
+
+                else:
+                    try:
+                        product = Product.objects.get(product_id=req["product_id"])
+                        summation += product.price * req["quantity"]
+                        OrderItems.objects.create(
+                            order=order, product=product, quantity=req["quantity"]
+                        )
+                    except Product.DoesNotExist:
+                        pass
+
+            order.totalBill = summation
+            order.save()
+            return Response(
+                {
+                    "success": True,
+                    "order_id": order.order_id,
+                    "totalBill": order.totalBill,
+                },
+                status=HTTP_200_OK,
+            )
+
+        else:
+            return Response(
+                {"success": False, "message": "Bad Request"},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+    def destroy(self, request, pk=None):
+        try:
+            order = Order.objects.get(order_id=pk)
+
+        except Order.DoesNotExist:
+            return Response(
+                {"success": False, "message": "Not Found"}, status=HTTP_404_NOT_FOUND
+            )
+
+        OrderItems.objects.filter(order=order).delete()
+        order.delete()
+
+        return Response(
+            {"success": True, "message": "Deleted"}, status=HTTP_204_NO_CONTENT
+        )
+
 
 class OrderAdminView(APIView):
     authentication_classes = [TokenAuthentication]
