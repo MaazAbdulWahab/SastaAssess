@@ -11,6 +11,7 @@ from rest_framework.status import *
 from products.models import Product
 from rest_framework.views import APIView
 from utils.permissions import IsSuperUserPermission
+from django.db.models import Q
 
 
 class OrdersCrud(ViewSet):
@@ -97,10 +98,10 @@ class OrdersCrud(ViewSet):
 
             for req in serialized.validated_data["requests"]:
                 if OrderItems.objects.filter(
-                    order=order, product__id=req["product_id"]
+                    order=order, product__product_id=req["product_id"]
                 ).exists():
                     oldrecord = OrderItems.objects.select_related("product").get(
-                        order=order, product__id=req["product_id"]
+                        order=order, product__product_id=req["product_id"]
                     )
 
                     if oldrecord.quantity != req["quantity"]:
@@ -119,6 +120,14 @@ class OrdersCrud(ViewSet):
                     except Product.DoesNotExist:
                         pass
 
+            allProductIDS = list(
+                map(lambda x: x["product_id"], serialized.validated_data["requests"])
+            )
+
+            OrderItems.objects.select_related("product").filter(
+                Q(order=order) & ~Q(product__product_id__in=allProductIDS)
+            ).delete()
+
             order.totalBill = summation
             order.save()
             return Response(
@@ -127,7 +136,7 @@ class OrdersCrud(ViewSet):
                     "order_id": order.order_id,
                     "totalBill": order.totalBill,
                 },
-                status=HTTP_200_OK,
+                status=HTTP_202_ACCEPTED,
             )
 
         else:

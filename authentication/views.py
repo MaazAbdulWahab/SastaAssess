@@ -11,6 +11,9 @@ from rest_framework.authentication import TokenAuthentication
 
 
 class Login(APIView):
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request, *args, **kargs):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
@@ -43,6 +46,9 @@ class Login(APIView):
 
 
 class Register(APIView):
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request, *args, **kargs):
         serializer = RegistrationSerializer(data=request.data)
         if serializer.is_valid():
